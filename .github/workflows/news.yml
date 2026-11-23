@@ -1,0 +1,54 @@
+name: News inbox
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */6 * * *"
+permissions:
+  contents: write
+concurrency:
+  group: flashwire-inbox
+  cancel-in-progress: false
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements.txt
+      - name: Restore private inbox
+        run: |
+          set -euo pipefail
+          state_dir="$RUNNER_TEMP/inbox"
+          if git ls-remote --exit-code --heads origin refs/heads/flashwire-inbox; then
+            git fetch --depth=1 origin refs/heads/flashwire-inbox
+            git worktree add -b flashwire-inbox "$state_dir" FETCH_HEAD
+          else
+            status=$?
+            test "$status" -eq 2
+            git worktree add --detach "$state_dir" HEAD
+            git -C "$state_dir" switch --orphan flashwire-inbox
+          fi
+          echo "FLASHWIRE_DB=$state_dir/inbox.sqlite" >> "$GITHUB_ENV"
+      - name: Collect and validate without credentials
+        id: scan
+        continue-on-error: true
+        run: |
+          python -m flashwire scan
+          python -m flashwire publish
+      - name: Save inbox
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/inbox"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add inbox.sqlite
+          if ! git diff --cached --quiet; then
+            git commit -m "Refresh editorial inbox"
+            git push origin HEAD:refs/heads/flashwire-inbox
+          fi
+      - name: Mark failed scan
+        if: steps.scan.outcome == 'failure'
+        run: exit 1

@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FLASHWIRE AI | Editorial desk</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='desk.css') }}">
+</head>
+<body>
+<header class="bar"><a class="wordmark" href="/">FLASHWIRE<span> AI</span></a>
+  <div class="bar-right"><span>Editorial desk</span><span class="mode">{{ 'Demo data' if sample else 'Local workspace' }}</span></div>
+</header>
+<main>
+  <section class="overview">
+    <div><p class="eyebrow">NEWSROOM / PUBLISHING</p><h1>Editorial queue</h1>
+      <p class="muted">Review coverage, refine the copy, and schedule Instagram posts.</p></div>
+    <div class="run"><span class="eyebrow">LAST INGESTION · UTC</span>
+      {% if last %}<strong>{{ last.at[:16]|replace('T',' ') }}</strong><small>{{ last.received }} articles · {{ last.failures|length }} source errors</small>
+      {% else %}<strong>Awaiting first scan</strong>{% endif %}
+    </div>
+  </section>
+  {% if last and last.failures %}<details class="notice"><summary>Source diagnostics</summary>
+    <ul>{% for failure in last.failures %}<li>{{ failure }}</li>{% endfor %}</ul></details>{% endif %}
+  {% for category, message in get_flashed_messages(with_categories=true) %}
+    <p class="notice {{ category }}" role="status">{{ message }}</p>
+  {% endfor %}
+  <nav aria-label="Filter editorial queue" class="filters">
+    {% for key, label, count in [('all','All stories',total),('review','Needs review',counts.review),('approved','Scheduled',counts.approved),('published','Published',counts.published),('uncertain','Check Instagram',counts.uncertain)] %}
+      <a class="{{ 'active' if key == current }}" {% if key == current %}aria-current="page"{% endif %} href="{{ url_for('index', status=key) }}">{{ label }} <b>{{ count }}</b></a>
+    {% endfor %}
+  </nav>
+  <div class="workspace">
+    <aside class="panel queue">
+      <h2>Story inbox</h2>
+      {% for story in stories %}
+        <a class="story {{ 'chosen' if selected and selected.id == story.id }}" href="{{ url_for('index', story=story.id, status=current) }}">
+          <span class="eyebrow">{{ story.region }} / {{ story.topic }}</span>
+          <strong>{{ story.headline or story.type }}</strong>
+          <small>{{ story.sources|length }} source links · {{ story.status }}</small>
+        </a>
+      {% else %}<p class="muted inset">No stories in this view.</p>{% endfor %}
+    </aside>
+    {% if selected %}
+    <article class="panel editor">
+      <header class="editor-head"><div><p class="eyebrow">{{ selected.region }} / {{ selected.type }}</p>
+        <h2>{{ selected.headline or selected.type }}</h2></div><span class="tag">{{ selected.status }}</span></header>
+      <p class="note">{{ selected.note }}</p>
+      {% if selected.due %}<p class="muted">Scheduled for {{ selected.due[:16]|replace('T',' ') }} UTC</p>{% endif %}
+      {% if selected.parent %}<p><a href="{{ url_for('index', story=selected.parent) }}">View original story</a></p>{% endif %}
+      <div class="detail">
+        <section class="copy">
+        <h3>Source coverage <small>{{ groups|length }} publisher groups</small></h3>
+        <ol class="sources">
+          {% for source in selected.sources %}<li><a target="_blank" rel="noopener noreferrer" href="{{ source.url }}">{{ source.title }}</a>
+            <small>{{ source.source }} · {{ source.seen_at[:16]|replace('T',' ') }} UTC{{ ' · discovery only' if source.discovered }}</small></li>{% endfor %}
+        </ol>
+        {% if selected.status == 'review' %}
+        <details><summary>Attach collected evidence</summary>
+          <form method="post" action="{{ url_for('change', story_id=selected.id) }}">
+            <input type="hidden" name="csrf" value="{{ token }}">
+            <label>Article URL from the inbox<input name="source_url" type="url" required></label>
+            <button class="secondary" name="action" value="evidence">Attach evidence</button>
+          </form>
+        </details>
+        {% endif %}
+        {% if selected.status in ['review','approved'] %}
+        <form method="post" action="{{ url_for('change', story_id=selected.id) }}">
+          <input type="hidden" name="csrf" value="{{ token }}">
+          <label>Headline<input name="headline" value="{{ selected.headline }}" maxlength="92" required></label>
+          <label>Caption<textarea name="caption" maxlength="400" rows="4" required>{{ selected.caption }}</textarea></label>
+          <label>Publish time (UTC)<input type="datetime-local" name="due" value="{{ selected.due[:16] if selected.due else now }}" required></label>
+          <label class="check"><input type="checkbox" value="yes" name="confirmed" required> I read the reports, checked for shared wire copy or conflicts, and verified the facts and wording.</label>
+          <button name="action" value="approve">Approve &amp; schedule</button>
+          {% if selected.status == 'approved' %}<button class="secondary" name="action" value="hold" formnovalidate>Hold</button>{% endif %}
+        </form>
+        {% elif selected.status == 'published' %}
+        <p>{{ selected.caption }}</p>
+        <form method="post" action="{{ url_for('change', story_id=selected.id) }}">
+          <input type="hidden" name="csrf" value="{{ token }}">
+          <button class="secondary" name="action" value="Update">Queue update</button>
+          <button class="secondary" name="action" value="Correction">Queue correction</button>
+        </form>
+        {% endif %}
+        </section>
+        <section class="preview">
+          <h3>Instagram artwork</h3>
+          <img alt="Original FLASHWIRE card for {{ selected.headline }}" src="{{ url_for('art', story_id=selected.id) }}" width="1080" height="1350">
+          <a class="download" href="{{ url_for('art', story_id=selected.id, download=1) }}">Download JPEG <span>1080 × 1350</span></a>
+        </section>
+      </div>
+    </article>
+    {% else %}
+    <article class="panel editor empty"><h2>No story selected</h2><p class="muted">Run a feed scan to bring news into the inbox.</p></article>
+    {% endif %}
+  </div>
+</main>
+</body>
+</html>

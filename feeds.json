@@ -1,0 +1,9 @@
+{
+  "rss": [
+    {"name": "BBC World", "group": "bbc", "url": "https://feeds.bbci.co.uk/news/world/rss.xml", "region": "World"},
+    {"name": "The Guardian World", "group": "guardian", "url": "https://www.theguardian.com/world/rss", "region": "World"},
+    {"name": "The Hindu National", "group": "thehindu", "url": "https://www.thehindu.com/news/national/feeder/default.rss", "region": "India"},
+    {"name": "Indian Express India", "group": "indianexpress", "url": "https://indianexpress.com/section/india/feed/", "region": "India"}
+  ],
+  "gdelt": "(India OR climate OR science OR economy OR election) sourcelang:english"
+}

@@ -1,6 +1,8 @@
 import argparse
 import json
+import sys
 from datetime import UTC, datetime, timedelta
+from getpass import getpass
 from pathlib import Path
 
 from .desk import db_path, transaction
@@ -35,6 +37,7 @@ def main():
     check = commands.add_parser("preflight")
     check.add_argument("--username", required=True)
     check.add_argument("--artwork", type=Path)
+    check.add_argument("--prompt-token", action="store_true")
     export = commands.add_parser("export-artwork")
     export.add_argument("directory", type=Path)
     repair = commands.add_parser("reconcile")
@@ -73,7 +76,14 @@ def main():
         if args.command == "preflight":
             if args.artwork is not None and not args.artwork.is_file():
                 raise ValueError("Choose an existing JPEG file for the hosting check.")
-            print(Instagram.from_env().preflight(args.username, args.artwork))
+            token = None
+            if args.prompt_token:
+                if not sys.stdin.isatty():
+                    raise ValueError("Run this check in an interactive terminal where input can be hidden.")
+                token = getpass("Paste your Meta test token (hidden): ").strip()
+                if not token:
+                    raise ValueError("No token was entered.")
+            print(Instagram.from_env(token=token).preflight(args.username, args.artwork))
         if args.command == "export-artwork":
             from .art import create_jpeg
             from .instagram import filename

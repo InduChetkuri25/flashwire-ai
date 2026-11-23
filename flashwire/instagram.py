@@ -53,13 +53,13 @@ class Instagram:
         self.upload = upload
 
     @classmethod
-    def from_env(cls, live=False):
+    def from_env(cls, live=False, token=None):
         image_base = os.getenv("IMAGE_BASE_URL", "")
         username = os.getenv("IG_USERNAME", "")
         if live and not username:
             raise ValueError("Set IG_USERNAME to the intended Instagram account before publishing.")
         client = cls(os.getenv("IG_ACCOUNT_ID", ""), os.getenv("IG_API_VERSION", ""),
-                     os.getenv("IG_ACCESS_TOKEN", ""), image_base,
+                     token if token is not None else os.getenv("IG_ACCESS_TOKEN", ""), image_base,
                      login=os.getenv("IG_LOGIN_MODE", "instagram"), username=username)
         if live and os.getenv("FLASHWIRE_PAGES_UPLOAD") == "yes":
             client.upload = PagesUpload.from_env(image_base)

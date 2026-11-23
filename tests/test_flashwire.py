@@ -13,6 +13,7 @@ from PIL import Image
 from flashwire.art import create_jpeg
 from flashwire.desk import approve, new_revision, transaction
 from flashwire.instagram import Instagram, PublishingError, publish_due, reconcile
+from flashwire.hosting import HostingError, PagesUpload
 from flashwire.news import Article, canonical, demo, ingest, update_queue
 from flashwire.web import app_for
 
@@ -138,6 +139,66 @@ class DeskTests(unittest.TestCase):
         self.assertEqual(len(articles), 2)
         self.assertTrue(articles[-1].discovered)
         self.assertEqual(errors, ["Two: Timeout"])
+
+    def test_preflight_is_read_only_and_rejects_wrong_profile_or_image(self):
+        artwork = self.path.parent / "sample.jpg"
+        artwork.write_bytes(b"fixture")
+        graph = Instagram("123", "v27.0", "fixture-token", "https://images.example.org")
+        responses = [{"id": "123", "username": "flashwire"}, {"data": [{"quota_usage": 0}]}]
+        with patch.object(graph, "call", side_effect=responses) as call:
+            with patch("flashwire.instagram.read_bytes", return_value=b"fixture") as get:
+                self.assertIn("Verified Meta account @flashwire", graph.preflight("@flashwire", artwork))
+            self.assertEqual([item.args[0] for item in call.call_args_list], ["GET", "GET"])
+            self.assertEqual(get.call_args.args[-1], "https://images.example.org/sample.jpg")
+        with patch.object(graph, "call", return_value=responses[0]):
+            with self.assertRaisesRegex(PublishingError, "expected Instagram username"):
+                graph.preflight("different", artwork)
+        with patch.object(graph, "call", side_effect=responses):
+            with patch("flashwire.instagram.read_bytes", return_value=b"different"):
+                with self.assertRaisesRegex(PublishingError, "differs"):
+                    graph.preflight("flashwire", artwork)
+
+    def test_unified_uses_official_host_and_approved_artwork_upload(self):
+        self.schedule()
+        with transaction(self.path) as state:
+            story = state["stories"][0]
+        jpeg = create_jpeg(story)
+        session, upload = Mock(), Mock()
+        session.request.side_effect = [
+            Mock(status_code=200, json=Mock(return_value=payload))
+            for payload in ({"id": "123", "username": "flashwire"}, {"data": [{"quota_usage": 0}]},
+                            {"id": "40"}, {"status_code": "FINISHED"}, {"id": "50"})
+        ]
+        graph = Instagram("123", "v27.0", "fixture-token", "https://example.pages.dev",
+                          session, login="unified", username="flashwire", upload=upload)
+        missing = requests.HTTPError(response=Mock(status_code=404))
+        with patch("flashwire.instagram.read_bytes", side_effect=[missing, jpeg]):
+            self.assertEqual(graph.publish(graph.prepare(story, jpeg, "Caption")), "50")
+        upload.assert_called_once()
+        self.assertEqual(upload.call_args.args[1], jpeg)
+        self.assertTrue(all(call.args[1].startswith("https://graph.facebook.com/v27.0/")
+                            for call in session.request.call_args_list))
+        self.assertEqual(session.request.call_args_list[0].args[0], "GET")
+
+    @patch.dict(os.environ, {"IG_ACCESS_TOKEN": "do-not-pass-to-wrangler"})
+    def test_pages_upload_isolates_files_and_secrets(self):
+        entrypoint = self.path.parent / "wrangler.js"
+        entrypoint.touch()
+        publisher = PagesUpload("https://flashwire.pages.dev", entrypoint, "a" * 32, "fixture")
+        valid_name = "a" * 16 + "-" + "a" * 20 + ".jpg"
+
+        def inspect(command, **settings):
+            assets = Path(command[4])
+            self.assertEqual([item.name for item in assets.iterdir()], [valid_name])
+            self.assertEqual((assets / valid_name).read_bytes(), b"fixture bytes")
+            self.assertEqual(command[-4:], ["--project-name", "flashwire", "--branch", "main"])
+            self.assertNotIn("IG_ACCESS_TOKEN", settings["env"])
+
+        with patch("flashwire.hosting.subprocess.run", side_effect=inspect) as runner:
+            publisher(valid_name, b"fixture bytes")
+        runner.assert_called_once()
+        with self.assertRaises(HostingError):
+            publisher("credential.json", b"fixture")
 
     def test_web_preview_and_csrf(self):
         story_id = self.schedule()

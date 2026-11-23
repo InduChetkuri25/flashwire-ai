@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from .desk import db_path, transaction
-from .instagram import publish_due, reconcile
+from .instagram import Instagram, publish_due, reconcile
 from .news import Article, demo, ingest, update_queue
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -32,6 +32,9 @@ def main():
     serve.add_argument("--demo", action="store_true")
     publish = commands.add_parser("publish")
     publish.add_argument("--live", action="store_true")
+    check = commands.add_parser("preflight")
+    check.add_argument("--username", required=True)
+    check.add_argument("--artwork", type=Path)
     export = commands.add_parser("export-artwork")
     export.add_argument("directory", type=Path)
     repair = commands.add_parser("reconcile")
@@ -67,6 +70,10 @@ def main():
             serve_http(app_for(path, args.demo), host="127.0.0.1", port=args.port)
         if args.command == "publish":
             print(publish_due(path, live=args.live))
+        if args.command == "preflight":
+            if args.artwork is not None and not args.artwork.is_file():
+                raise ValueError("Choose an existing JPEG file for the hosting check.")
+            print(Instagram.from_env().preflight(args.username, args.artwork))
         if args.command == "export-artwork":
             from .art import create_jpeg
             from .instagram import filename

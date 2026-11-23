@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -8,6 +9,9 @@ from urllib.parse import urlsplit
 
 class HostingError(RuntimeError):
     pass
+
+
+CALLBACK_ASSETS = Path(__file__).with_name("oauth_public")
 
 
 class PagesUpload:
@@ -39,7 +43,7 @@ class PagesUpload:
         with TemporaryDirectory(prefix="flashwire-pages-") as folder:
             root = Path(folder)
             assets = root / "artwork"
-            assets.mkdir()
+            shutil.copytree(CALLBACK_ASSETS, assets)
             (assets / name).write_bytes(jpeg)
             try:
                 subprocess.run(["node", str(self.entrypoint), "pages", "deploy", str(assets),

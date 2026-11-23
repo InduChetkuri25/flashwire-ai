@@ -8,6 +8,7 @@ from urllib.parse import urlsplit
 import requests
 
 from .art import create_jpeg
+from .credentials import read_token
 from .desk import caption_for, due_story, edit_text, find, transaction
 from .hosting import HostingError, PagesUpload
 from .news import read_bytes, source_groups
@@ -58,12 +59,31 @@ class Instagram:
         username = os.getenv("IG_USERNAME", "")
         if live and not username:
             raise ValueError("Set IG_USERNAME to the intended Instagram account before publishing.")
+        credential = token if token is not None else os.getenv("IG_ACCESS_TOKEN", "")
+        if not credential and os.getenv("FLASHWIRE_TOKEN_FILE"):
+            credential = read_token(os.environ["FLASHWIRE_TOKEN_FILE"])
         client = cls(os.getenv("IG_ACCOUNT_ID", ""), os.getenv("IG_API_VERSION", ""),
-                     token if token is not None else os.getenv("IG_ACCESS_TOKEN", ""), image_base,
+                     credential, image_base,
                      login=os.getenv("IG_LOGIN_MODE", "instagram"), username=username)
         if live and os.getenv("FLASHWIRE_PAGES_UPLOAD") == "yes":
             client.upload = PagesUpload.from_env(image_base)
         return client
+
+    @staticmethod
+    def exchange_code(version, app_id, app_secret, callback, code):
+        try:
+            response = requests.get(f"https://graph.facebook.com/{version}/oauth/access_token",
+                                    params={"client_id": app_id, "client_secret": app_secret,
+                                            "redirect_uri": callback, "code": code},
+                                    timeout=(5, 15), allow_redirects=False)
+            if response.status_code != 200:
+                raise PublishingError("Meta did not authorize the connection.")
+            token = response.json().get("access_token")
+            if not isinstance(token, str) or not token:
+                raise PublishingError("Meta did not return a usable credential.")
+            return token
+        except (requests.RequestException, ValueError, AttributeError):
+            raise PublishingError("Could not confirm the Meta sign-in.") from None
 
     def call(self, method, path, **values):
         try:

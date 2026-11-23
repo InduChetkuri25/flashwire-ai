@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import sys
 from datetime import UTC, datetime, timedelta
 from getpass import getpass
@@ -38,6 +39,11 @@ def main():
     check.add_argument("--username", required=True)
     check.add_argument("--artwork", type=Path)
     check.add_argument("--prompt-token", action="store_true")
+    connect = commands.add_parser("connect-meta")
+    connect.add_argument("--app-id", required=True)
+    connect.add_argument("--config-id", required=True)
+    connect.add_argument("--callback", required=True)
+    connect.add_argument("--token-file", required=True, type=Path)
     export = commands.add_parser("export-artwork")
     export.add_argument("directory", type=Path)
     repair = commands.add_parser("reconcile")
@@ -84,6 +90,18 @@ def main():
                 if not token:
                     raise ValueError("No token was entered.")
             print(Instagram.from_env(token=token).preflight(args.username, args.artwork))
+        if args.command == "connect-meta":
+            from waitress import serve as serve_http
+            from .meta_oauth import LOCAL, oauth_app
+
+            if os.name != "nt" or not sys.stdin.isatty():
+                raise ValueError("Run the Meta connection from an interactive terminal on Windows.")
+            app_secret = getpass("Paste your Meta app secret (hidden): ").strip()
+            app = oauth_app(args.app_id, args.config_id, os.getenv("IG_API_VERSION", ""),
+                            args.callback, app_secret, os.getenv("IG_ACCOUNT_ID", ""),
+                            os.getenv("IG_USERNAME", ""), os.getenv("IMAGE_BASE_URL", ""), args.token_file)
+            print(f"Open {LOCAL} and select Continue to Meta. This does not post.", flush=True)
+            serve_http(app, host="127.0.0.1", port=8767)
         if args.command == "export-artwork":
             from .art import create_jpeg
             from .instagram import filename

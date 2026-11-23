@@ -189,8 +189,9 @@ class DeskTests(unittest.TestCase):
 
         def inspect(command, **settings):
             assets = Path(command[4])
-            self.assertEqual([item.name for item in assets.iterdir()], [valid_name])
+            self.assertEqual({item.name for item in assets.iterdir()}, {valid_name, "_headers", "auth"})
             self.assertEqual((assets / valid_name).read_bytes(), b"fixture bytes")
+            self.assertTrue((assets / "auth" / "callback.html").is_file())
             self.assertEqual(command[-4:], ["--project-name", "flashwire", "--branch", "main"])
             self.assertNotIn("IG_ACCESS_TOKEN", settings["env"])
 

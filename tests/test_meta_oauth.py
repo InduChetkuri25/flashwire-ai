@@ -28,9 +28,11 @@ class MetaOAuthTests(unittest.TestCase):
         self.assertEqual(result.status_code, 303)
         url = urlsplit(result.headers["Location"])
         self.assertEqual(url.hostname, "www.facebook.com")
+        self.assertEqual(url.path, "/dialog/oauth")
         values = parse_qs(url.query)
         self.assertEqual(values["redirect_uri"], [self.callback])
         self.assertEqual(values["config_id"], ["456"])
+        self.assertEqual(values["override_default_response_type"], ["true"])
         self.assertNotIn("fixture-secret", result.headers["Location"])
         return values["state"][0]
 

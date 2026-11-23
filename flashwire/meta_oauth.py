@@ -55,8 +55,9 @@ def oauth_app(app_id, config_id, version, callback, app_secret, account, usernam
         state = secrets.token_urlsafe(32)
         session.update(state=state, started=int(session_clock()))
         options = urlencode({"client_id": app_id, "config_id": config_id, "redirect_uri": callback,
+                             "display": "popup", "override_default_response_type": "true",
                              "response_type": "code", "state": state, "prompt": "login"})
-        return redirect(f"https://www.facebook.com/{version}/dialog/oauth?{options}", code=303)
+        return redirect(f"https://www.facebook.com/dialog/oauth?{options}", code=303)
 
     @app.get("/meta/callback")
     def callback_page():

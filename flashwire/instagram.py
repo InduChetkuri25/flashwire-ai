@@ -183,7 +183,7 @@ class Instagram:
         return str(media)
 
 
-def publish_due(path, now=None, client=None, live=False):
+def publish_due(path, now=None, client=None, live=False, checkpoint=None):
     now = now or datetime.now(UTC)
     if live:
         if os.getenv("FLASHWIRE_LIVE") != "yes":
@@ -211,6 +211,8 @@ def publish_due(path, now=None, client=None, live=False):
         raise
     with transaction(path) as state:
         find(state, story["id"]).update(container_id=container)
+    if checkpoint:
+        checkpoint()
     try:
         media = client.publish(container)
     except PublishingError as error:

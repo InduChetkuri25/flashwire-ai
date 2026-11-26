@@ -74,7 +74,7 @@ class GitHubArtworkUpload:
         public_endpoint = f"repos/{self.repository}"
         artwork_endpoint = f"{public_endpoint}/contents/artwork/{name}"
         allowed = {"PATH", "PATHEXT", "SYSTEMROOT", "WINDIR", "TEMP", "TMP",
-                   "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "GH_CONFIG_DIR"}
+                   "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "GH_CONFIG_DIR", "GH_TOKEN"}
         environment = {key: value for key, value in os.environ.items() if key.upper() in allowed}
         environment.update(GH_PROMPT_DISABLED="1", GH_HOST="github.com")
         try:

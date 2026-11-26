@@ -10,7 +10,7 @@ from urllib.parse import urlsplit
 
 import requests
 from PIL import Image, ImageOps
-from playwright.sync_api import sync_playwright
+
 
 from .__main__ import scan
 from .desk import approve, db_path, find, transaction
@@ -54,6 +54,7 @@ def illustration(story, folder):
     target = folder / "illustrations" / (story["id"] + ".jpg")
     if target.is_file():
         return
+    from playwright.sync_api import sync_playwright
     with sync_playwright() as browser:
         context = browser.chromium.launch_persistent_context(str(folder / "gemini-profile"),
                     channel=os.getenv("FLASHWIRE_BROWSER_CHANNEL", "chrome"), headless=True, accept_downloads=True)
@@ -79,9 +80,13 @@ def illustration(story, folder):
 
 
 def cycle():
+    run_desk(local_model, images=True, collect=True)
+
+
+def run_desk(model, *, images=False, collect=False, publish=True):
     path = db_path()
     folder = path.parent
-    report = scan(path)
+    report = scan(path) if collect else None
     now = datetime.now(UTC)
     LOG.info("Scan %s", report)
     with transaction(path) as state:
@@ -92,13 +97,13 @@ def cycle():
         titles = evidence(story, now)
         if not titles:
             continue
-        copy = local_model("Two independent news headlines follow. Only if both report the same concrete new event, "
+        copy = model("Two independent news headlines follow. Only if both report the same concrete new event, "
                            "write an original headline 12-92 characters and caption 30-400 characters. Include only "
                            "facts explicitly supported by both. Skip opinion, allegations, predictions, conflicting "
                            "accounts and questions. Return {} to skip or JSON with headline and caption strings.", titles)
         if not isinstance(copy, dict) or not all(isinstance(copy.get(k), str) for k in ("headline", "caption")):
             continue
-        supported = local_model("Return JSON with supported true only if every claim in the proposed headline and "
+        supported = model("Return JSON with supported true only if every claim in the proposed headline and "
                                 "caption follows from EACH source independently, retaining uncertainty. Otherwise false.",
                                 {"sources": titles, "proposed": copy})
         if not isinstance(supported, dict) or supported.get("supported") is not True:
@@ -114,8 +119,10 @@ def cycle():
         except ValueError:
             continue
         try:
-            illustration(story, folder)
+            if images:
+                illustration(story, folder)
         except Exception as error:
             LOG.warning("White fallback card selected (%s)", type(error).__name__)
         break
-    LOG.info("%s", publish_due(path, live=True))
+    if publish:
+        LOG.info("%s", publish_due(path, live=True))

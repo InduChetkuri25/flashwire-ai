@@ -1,0 +1,13 @@
+[Unit]
+Description=FLASHWIRE news scan and Instagram publisher
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/flashwire-ai
+EnvironmentFile=%h/.config/flashwire/worker.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=%h/flashwire-ai/.venv/bin/python -m flashwire.cloud_worker
+TimeoutStartSec=25min
+UMask=0077
+NoNewPrivileges=true

@@ -1,0 +1,10 @@
+[Unit]
+Description=Check for corroborated FLASHWIRE news twice per hour
+
+[Timer]
+OnCalendar=*-*-* *:07,37:00
+Persistent=true
+Unit=flashwire.service
+
+[Install]
+WantedBy=timers.target

@@ -44,14 +44,22 @@ def oauth_app(app_id, config_id, version, callback, app_secret, account, usernam
 
     @app.get("/")
     def home():
+        start_token = secrets.token_urlsafe(32)
+        session["start_token"] = start_token
         return Response("<!doctype html><html lang=en><meta charset=utf-8><title>Connect FLASHWIRE AI</title>"
                         "<h1>Connect FLASHWIRE AI to Meta</h1><p>This verifies access without posting.</p>"
-                        "<form method=post action=/meta/start><button>Continue to Meta</button></form>", mimetype="text/html")
+                        "<form method=post action=/meta/start>"
+                        f"<input type=hidden name=start_token value='{start_token}'>"
+                        "<button>Continue to Meta</button></form>", mimetype="text/html")
 
     @app.post("/meta/start")
     def start():
-        if request.headers.get("Origin") != LOCAL:
-            return "Start from the local FLASHWIRE connection page.", 403
+        start_token = request.form.get("start_token", "")
+        expected = session.pop("start_token", "")
+        if (request.headers.get("Origin") not in (None, "null", LOCAL)
+                or not re.fullmatch(r"[a-zA-Z0-9_-]{43}", start_token)
+                or not hmac.compare_digest(start_token, expected)):
+            return "Start again from the local FLASHWIRE connection page.", 403
         state = secrets.token_urlsafe(32)
         session.update(state=state, started=int(session_clock()))
         options = urlencode({"client_id": app_id, "config_id": config_id, "redirect_uri": callback,
@@ -71,7 +79,7 @@ def oauth_app(app_id, config_id, version, callback, app_secret, account, usernam
 
     @app.post("/meta/complete")
     def complete():
-        if request.headers.get("Origin") != LOCAL:
+        if request.headers.get("Origin") not in (None, "null", LOCAL):
             return "Invalid connection origin.", 403
         expected = session.pop("state", "")
         issued = session.pop("started", 0)

@@ -1,4 +1,5 @@
 import os
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -24,7 +25,10 @@ class MetaOAuthTests(unittest.TestCase):
         self.origin = {"Origin": LOCAL}
 
     def start(self):
-        result = self.client.post("/meta/start", base_url=LOCAL, headers=self.origin)
+        home = self.client.get("/", base_url=LOCAL)
+        token = re.search(rb"name=start_token value='([^']+)'", home.data)[1].decode()
+        result = self.client.post("/meta/start", base_url=LOCAL, headers={"Origin": "null"},
+                                  data={"start_token": token})
         self.assertEqual(result.status_code, 303)
         url = urlsplit(result.headers["Location"])
         self.assertEqual(url.hostname, "www.facebook.com")

@@ -10,7 +10,7 @@ import requests
 from .art import create_jpeg
 from .credentials import read_token
 from .desk import caption_for, due_story, edit_text, find, transaction
-from .hosting import HostingError, PagesUpload
+from .hosting import GitHubArtworkUpload, HostingError, PagesUpload
 from .news import read_bytes, source_groups
 
 
@@ -67,6 +67,10 @@ class Instagram:
                      login=os.getenv("IG_LOGIN_MODE", "instagram"), username=username)
         if live and os.getenv("FLASHWIRE_PAGES_UPLOAD") == "yes":
             client.upload = PagesUpload.from_env(image_base)
+        if live and os.getenv("FLASHWIRE_GITHUB_UPLOAD") == "yes":
+            if client.upload:
+                raise ValueError("Select just one automatic artwork host.")
+            client.upload = GitHubArtworkUpload(image_base, os.getenv("FLASHWIRE_GH_EXE"))
         return client
 
     @staticmethod
@@ -149,14 +153,14 @@ class Instagram:
                 self.upload(name, jpeg)
             except HostingError as error:
                 raise PublishingError(str(error)) from None
-            for attempt in range(4):
+            for attempt in range(8):
                 if attempt:
                     time.sleep(4)
                 try:
                     url = self.check_artwork(name, jpeg)
                     break
                 except ArtworkUnavailable:
-                    if attempt == 3:
+                    if attempt == 7:
                         raise
         container = self.call("POST", f"{self.account}/media", image_url=url, caption=caption,
                               alt_text=story["headline"]).get("id", "")

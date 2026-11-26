@@ -2,6 +2,7 @@ import os
 import re
 import tempfile
 import unittest
+from html import unescape
 from pathlib import Path
 from unittest.mock import Mock, patch
 from urllib.parse import parse_qs, urlsplit
@@ -26,18 +27,16 @@ class MetaOAuthTests(unittest.TestCase):
 
     def start(self):
         home = self.client.get("/", base_url=LOCAL)
-        token = re.search(rb"name=start_token value='([^']+)'", home.data)[1].decode()
-        result = self.client.post("/meta/start", base_url=LOCAL, headers={"Origin": "null"},
-                                  data={"start_token": token})
-        self.assertEqual(result.status_code, 303)
-        url = urlsplit(result.headers["Location"])
+        self.assertEqual(home.status_code, 200)
+        link = unescape(re.search(rb'href="([^"]+)"', home.data)[1].decode())
+        url = urlsplit(link)
         self.assertEqual(url.hostname, "www.facebook.com")
         self.assertEqual(url.path, "/dialog/oauth")
         values = parse_qs(url.query)
         self.assertEqual(values["redirect_uri"], [self.callback])
         self.assertEqual(values["config_id"], ["456"])
         self.assertEqual(values["override_default_response_type"], ["true"])
-        self.assertNotIn("fixture-secret", result.headers["Location"])
+        self.assertNotIn("fixture-secret", link)
         return values["state"][0]
 
     @patch("flashwire.meta_oauth.save_token")
@@ -58,7 +57,8 @@ class MetaOAuthTests(unittest.TestCase):
 
     @patch.object(Instagram, "exchange_code")
     def test_rejects_cross_origin_expired_and_wrong_state(self, exchange):
-        self.assertEqual(self.client.post("/meta/start", base_url=LOCAL).status_code, 403)
+        old_page = self.client.post("/meta/start", base_url=LOCAL)
+        self.assertIn(b'href="/"', old_page.data)
         state = self.start()
         for origin, wrong_state, expected in [("https://example.com", state, 403), (LOCAL, "X" * 43, 400)]:
             result = self.client.post("/meta/complete", data={"state": wrong_state, "code": "fixture-code"},

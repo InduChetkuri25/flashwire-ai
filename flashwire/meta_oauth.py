@@ -3,8 +3,9 @@ import re
 import secrets
 import time
 from urllib.parse import urlencode, urlsplit
+from html import escape
 
-from flask import Flask, Response, redirect, request, session
+from flask import Flask, Response, request, session
 
 from .credentials import save_token
 from .instagram import Instagram, PublishingError
@@ -39,33 +40,25 @@ def oauth_app(app_id, config_id, version, callback, app_secret, account, usernam
                                  "X-Content-Type-Options": "nosniff", "X-Robots-Tag": "noindex",
                                  "Content-Security-Policy":
                                      "default-src 'none'; script-src 'self'; connect-src 'self'; "
-                                     "form-action 'self' https://www.facebook.com; frame-ancestors 'none'; base-uri 'none'"})
+                                     "form-action 'none'; frame-ancestors 'none'; base-uri 'none'"})
         return response
 
     @app.get("/")
     def home():
-        start_token = secrets.token_urlsafe(32)
-        session["start_token"] = start_token
-        return Response("<!doctype html><html lang=en><meta charset=utf-8><title>Connect FLASHWIRE AI</title>"
-                        "<h1>Connect FLASHWIRE AI to Meta</h1><p>This verifies access without posting.</p>"
-                        "<form method=post action=/meta/start>"
-                        f"<input type=hidden name=start_token value='{start_token}'>"
-                        "<button>Continue to Meta</button></form>", mimetype="text/html")
-
-    @app.post("/meta/start")
-    def start():
-        start_token = request.form.get("start_token", "")
-        expected = session.pop("start_token", "")
-        if (request.headers.get("Origin") not in (None, "null", LOCAL)
-                or not re.fullmatch(r"[a-zA-Z0-9_-]{43}", start_token)
-                or not hmac.compare_digest(start_token, expected)):
-            return "Start again from the local FLASHWIRE connection page.", 403
         state = secrets.token_urlsafe(32)
         session.update(state=state, started=int(session_clock()))
         options = urlencode({"client_id": app_id, "config_id": config_id, "redirect_uri": callback,
                              "display": "popup", "override_default_response_type": "true",
                              "response_type": "code", "state": state, "prompt": "login"})
-        return redirect(f"https://www.facebook.com/dialog/oauth?{options}", code=303)
+        link = escape(f"https://www.facebook.com/dialog/oauth?{options}", quote=True)
+        return Response("<!doctype html><html lang=en><meta charset=utf-8><title>Connect FLASHWIRE AI</title>"
+                        "<h1>Connect FLASHWIRE AI to Meta</h1><p>This verifies access without posting.</p>"
+                        f'<a href="{link}" rel="noreferrer">Continue to Meta</a>', mimetype="text/html")
+
+    @app.route("/meta/start", methods=["GET", "POST"])
+    def old_start():
+        return Response("<!doctype html><title>Restart FLASHWIRE sign-in</title>"
+                        '<p><a href="/">Open the updated FLASHWIRE connection page</a>.</p>', mimetype="text/html")
 
     @app.get("/meta/callback")
     def callback_page():

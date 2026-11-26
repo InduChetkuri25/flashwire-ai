@@ -57,3 +57,9 @@ python -m unittest discover -s tests -v
 ```
 
 Tests use simulated sources and Meta responses. They cover duplicate handling, feed failures, approval rules, scheduled time, dry runs, official API request shapes, artwork, queue persistence, corrections and uncertain publish recovery.
+
+### Standalone Windows installation
+
+The local installation runs under Windows Task Scheduler as **FLASHWIRE News Desk** every 30 minutes. The entry point is `flashwire/local_runner.py cycle`. It uses the installed local Ollama model `qwen2.5:3b` for drafting and checking fresh corroborated reports, Chrome for optional Gemini illustrations, and Meta for publishing. Install the worker dependencies from `requirements-worker.txt`. The local runner contains the non-secret account and artwork host settings for this installation.
+
+Open **Open FLASHWIRE Gemini.cmd**, sign into Gemini once, then close that Chrome window to release its profile for scheduled runs. The browser profile, protected Meta credential, local database and log stay on this PC. Runs fall back to a white text card on image-generation errors. The PC must be awake, signed in and online. Check `work/flashwire-state/worker.log` alongside the project output for scan and publish results. An uncertain publishing response pauses further posts until reconciled.

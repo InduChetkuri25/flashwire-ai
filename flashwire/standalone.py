@@ -56,7 +56,7 @@ def illustration(story, folder):
         return
     with sync_playwright() as browser:
         context = browser.chromium.launch_persistent_context(str(folder / "gemini-profile"),
-                    channel="chrome", headless=True, accept_downloads=True)
+                    channel=os.getenv("FLASHWIRE_BROWSER_CHANNEL", "chrome"), headless=True, accept_downloads=True)
         try:
             page = context.new_page()
             page.goto("https://gemini.google.com/app", wait_until="domcontentloaded", timeout=45000)
